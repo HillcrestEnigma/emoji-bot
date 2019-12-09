@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: emojibot-config
+data:
+  prefix: '<insert bot prefix>'
+  guild-id: '<insert your guild id>'

@@ -165,7 +165,7 @@ class MyClient(discord.Client):
                     if not set_emoji_coro in done:
                         return
                     new_message = re.sub(emoji_regex, self.sub_emoji, message.content)
-                    webhook = await message.channel.create_webhook(name=message.author.name, avatar=await message.author.avatar_url.read())
+                    webhook = await message.channel.create_webhook(name=message.author.display_name, avatar=await message.author.avatar_url.read())
                     await webhook.send(new_message)
                     await webhook.delete()
                     await message.delete()

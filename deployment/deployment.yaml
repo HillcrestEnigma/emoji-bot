@@ -1,0 +1,55 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: emojibot
+spec:
+  selector:
+    matchLabels:
+      run: emojibot
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        run: emojibot
+    spec:
+      containers:
+      - name: emojibot
+        image: docker.pkg.github.com/hillcrestpaul0719/emoji-bot/emojibot:v1.0
+        env:
+          - name: EMOJIBOT_PREFIX
+            valueFrom:
+              configMapKeyRef:
+                name: emojibot-config
+                key: prefix
+          - name: EMOJIBOT_GUILDID
+            valueFrom:
+              configMapKeyRef:
+                name: emojibot-config
+                key: guild-id
+          - name: EMOJIBOT_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: emojibot-secret
+                key: token
+          - name: EMOJIBOT_BUCKETENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: emojibot-secret
+                key: bucket-endpoint
+          - name: EMOJIBOT_BUCKETACCESSKEY
+            valueFrom:
+              secretKeyRef:
+                name: emojibot-secret
+                key: bucket-access-key
+          - name: EMOJIBOT_BUCKETSECRETKEY
+            valueFrom:
+              secretKeyRef:
+                name: emojibot-secret
+                key: bucket-secret-key
+          - name: EMOJIBOT_BUCKETNAME
+            valueFrom:
+              secretKeyRef:
+                name: emojibot-secret
+                key: bucket-name
+      imagePullSecrets:
+      - name: github-pkg-hillcrestpaul0719
