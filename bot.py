@@ -105,7 +105,7 @@ class MyClient(discord.Client):
         global config_dict
         if message.guild.id == config_dict['guild_id']:
             # we do not want the bot to reply to itself
-            if message.author.id == self.user.id:
+            if message.author.id == self.user.id or message.webhook_id:
                 return
 
             if message.content.startswith(config_dict['prefix']):
