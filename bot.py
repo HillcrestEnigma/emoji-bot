@@ -166,7 +166,7 @@ class MyClient(discord.Client):
                 elif message.content == config_dict['prefix'] + "reload":
                     config_dict = config.update_config()
                 elif message.content == config_dict['prefix'] + "maintainstate":
-                    maintain_emoji_state(config_dict['guild_id'], config_dict['bucket_name'])
+                    self.maintain_emoji_state(config_dict['guild_id'], config_dict['bucket_name'])
             else:
                 emoji_matches = set([i for i in emoji_regex.findall(message.content)])
                 guild_emojis = set([i.name for i in await message.guild.fetch_emojis()])
