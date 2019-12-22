@@ -102,7 +102,7 @@ class MyClient(discord.Client):
             guild = client.get_guild(guild_id)
             emoji = await discord.utils.get(guild.emojis, name=curName)
             await emoji.delete()
-        minioClient.remove_object(bucket_name, curName)
+        minioClient.remove_object(bucket_name, emoji_name)
 
     async def rename_emoji(self, guild_id, bucket_name, curName, newName, edit_guild=True):
         if edit_guild:
@@ -110,8 +110,9 @@ class MyClient(discord.Client):
             emoji = await discord.utils.get(guild.emojis, name=curName)
             await emoji.edit(name="newName")
         curObj = minioClient.stat_object(bucket_name, curName)
-        minioClient.copy_object(bucket_name, newName, curName, metadata=curObj.metadata)
-        self.delete_emoji(guild_id, bucket_name, curName, edit_guild=False)
+        metadata = curObj.metadata
+        minioClient.copy_object(bucket_name, newName, '{0}/{1}'.format(bucket_name, curName), metadata=metadata)
+        await self.delete_emoji(guild_id, bucket_name, curName, edit_guild=False)
 
     async def on_ready(self):
         print('Logged in as')
@@ -124,8 +125,22 @@ class MyClient(discord.Client):
         await self.maintain_emoji_state(config_dict['guild_id'], config_dict['bucket_name'])
 
     async def on_guild_emojis_update(self, guild, before, after):
-        global status
         if guild.id == config_dict['guild_id']:
+
+            emoji_names_before = [i.name for i in before]
+            emoji_names_after = [i.name for i in after]
+
+            if len(before) == len(after):
+                old_name = list(set(emoji_names_before) - set(emoji_names_after))[0]
+                new_name = list(set(emoji_names_after) - set(emoji_names_before))[0]
+                await self.rename_emoji(config_dict['guild_id'], config_dict['bucket_name'], old_name, new_name, False)
+            elif len(before) > len(after):
+                deleted_emoji = list(set(emoji_names_before) - set(emoji_names_after))[0]
+                audit_log = await guild.audit_logs(limit=5, action=discord.AuditLogAction.emoji_delete).flatten()
+                action = discord.utils.find(lambda x: x.before.name == deleted_emoji, audit_log)
+                if not action.user.id == self.user.id:
+                    await self.delete_emoji(config_dict['guild_id'], config_dict['bucket_name'], deleted_emoji, False)
+
             await self.maintain_emoji_state(config_dict['guild_id'], config_dict['bucket_name'])
 
     async def on_message(self, message):
