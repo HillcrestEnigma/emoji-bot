@@ -25,7 +25,17 @@ emoji_id_dict = {}
 
 class MyClient(discord.Client):
     async def get_guild_emoji_state(self, guild_id):
-        return set([i.name for i in client.get_guild(guild_id).emojis])
+        guild = client.get_guild(guild_id)
+        guild_emojis = guild.emojis
+        guild_emoji_names = [i.name for i in guild_emojis]
+        duplicates = []
+        for i in guild_emoji_names:
+            if guild_emoji_names.count(i) > 1 and not i in duplicates:
+                duplicates.append(i)
+        for i in duplicates:
+            emoji = discord.utils.get(guild_emojis, name=i)
+            await emoji.delete()
+        return set(guild_emoji_names)
 
     async def set_guild_emoji_state(self, guild_id, bucket_name, new_state):
         guild = client.get_guild(guild_id)
@@ -166,7 +176,7 @@ class MyClient(discord.Client):
                 elif message.content == config_dict['prefix'] + "reload":
                     config_dict = config.update_config()
                 elif message.content == config_dict['prefix'] + "maintainstate":
-                    self.maintain_emoji_state(config_dict['guild_id'], config_dict['bucket_name'])
+                    await self.maintain_emoji_state(config_dict['guild_id'], config_dict['bucket_name'])
             else:
                 emoji_matches = set([i for i in emoji_regex.findall(message.content)])
                 guild_emojis = set([i.name for i in await message.guild.fetch_emojis()])
