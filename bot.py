@@ -66,6 +66,7 @@ class MyClient(discord.Client):
         guild = client.get_guild(guild_id)
         guild_state = await self.get_guild_emoji_state(guild_id)
         bucket_state = await self.get_bucket_emoji_state(bucket_name)
+
         if guild_state == bucket_state:
             return
         if not guild_state.issubset(bucket_state):
@@ -86,6 +87,22 @@ class MyClient(discord.Client):
         emoji_id = emoji_id_dict[matchObj.group(1)]
         return "<:{0}:{1}>".format(matchObj.group(1), emoji_id)
 
+    async def delete_emoji(self, guild_id, bucket_name, emoji_name, edit_guild=True):
+        if edit_guild:
+            guild = client.get_guild(guild_id)
+            emoji = await discord.utils.get(guild.emojis, name=curName)
+            await emoji.delete()
+        minioClient.remove_object(bucket_name, curName)
+
+    async def rename_emoji(self, guild_id, bucket_name, curName, newName, edit_guild=True):
+        if edit_guild:
+            guild = client.get_guild(guild_id)
+            emoji = await discord.utils.get(guild.emojis, name=curName)
+            await emoji.edit(name="newName")
+        curObj = minioClient.stat_object(bucket_name, curName)
+        minioClient.copy_object(bucket_name, newName, curName, metadata=curObj.metadata)
+        self.delete_emoji(guild_id, bucket_name, curName, edit_guild=False)
+
     async def on_ready(self):
         print('Logged in as')
         print(self.user.name)
@@ -98,7 +115,7 @@ class MyClient(discord.Client):
 
     async def on_guild_emojis_update(self, guild, before, after):
         global status
-        if guild.id == config_dict['guild_id'] and (status['maintain_emoji_state'] == "idle"):
+        if guild.id == config_dict['guild_id']:
             await self.maintain_emoji_state(config_dict['guild_id'], config_dict['bucket_name'])
 
     async def on_message(self, message):
