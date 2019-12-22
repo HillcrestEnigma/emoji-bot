@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: emojibot
-        image: docker.pkg.github.com/hillcrestpaul0719/emoji-bot/emojibot:v1.0
+        image: docker.pkg.github.com/hillcrestpaul0719/emoji-bot/emojibot:v1.2.1
         env:
           - name: EMOJIBOT_PREFIX
             valueFrom:

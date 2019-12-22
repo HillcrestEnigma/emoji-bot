@@ -16,12 +16,34 @@ minioClient = Minio(config_dict['bucket_endpoint'],
                   secret_key=config_dict['bucket_secret_key'],
                   secure=True)
 help_message = [
-    ['listemojis', 'List all emojis available.'],
+    ['le [Page Number]', 'List all emojis available.'],
     ['emoji [Emoji Name]', 'Display information on the emoji specified.'],
     ['help', 'Display this glorious help message.']
 ]
 status = {"maintain_emoji_state": "idle"}
 emoji_id_dict = {}
+
+class Paginator:
+    def __init__(self, items, per_page=10):
+        self.items = items
+        self.per_page = per_page
+    
+    def num_pages(self, per_page=None):
+        if per_page == None:
+            per_page = self.per_page
+        return len(self.items) // per_page + 1
+
+    def get_page(self, page, per_page=None):
+        if per_page == None:
+            per_page = self.per_page
+        num_pages = self.num_pages(per_page)
+        if page >= 0 and page <= num_pages-1:
+            if page == num_pages-1:
+                return self.items[per_page*page:]
+            else:
+                return self.items[per_page*page:per_page*(page+1)]
+        else:
+            raise IndexError
 
 class MyClient(discord.Client):
     async def get_guild_emoji_state(self, guild_id):
@@ -151,18 +173,36 @@ class MyClient(discord.Client):
                 return
 
             if message.content.startswith(config_dict['prefix']):
-                if message.content == config_dict['prefix'] + 'listemojis':
+                command = message.content[len(config_dict['prefix']):].split(" ")
+                if command[0] in ['listemojis', 'listemotes', 'le', 'ls', 'list', 'l']:
+                    if len(command) == 1:
+                        page = 0
+                    else:
+                        page = int(command[1]) - 1
                     objects = minioClient.list_objects_v2(config_dict['bucket_name'])
+                    paginator = Paginator(list(objects), 50)
+                    num_pages = paginator.num_pages()
+                    objects = paginator.get_page(page)
+                    next_page = (page+2)%num_pages
+                    if next_page == 0:
+                        next_page = num_pages
+                    guild_state = await self.get_guild_emoji_state(config_dict['guild_id'])
                     embed = discord.Embed(title="Emojis of {0}".format(message.guild.name))
-                    emoji_textlist = []
+                    emoji_textlist = ['**__Page {0}/{1}__**\n'.format(page+1, num_pages)]
                     for i in objects:
-                        if (not None == i.metadata) and 'x-amz-meta-info' in i.metadata:
-                            info = i.metadata['x-amz-meta-info']
-                        else:
-                            info = '*Last Modified at {0}*'.format(i.last_modified)
-                            info = "*No info provided*"
+                        # if (not None == i.metadata) and 'x-amz-meta-info' in i.metadata:
+                        #     info = i.metadata['x-amz-meta-info']
+                        # else:
+                        #     info = '*Last Modified at {0}*'.format(i.last_modified)
+                        #     info = "*No info provided*"
                         # emoji_textlist.append("{0} - {1}".format(i.object_name, info))
-                        emoji_textlist.append(i.object_name)
+                        if i.object_name in guild_state:
+                            obj_name = '**{0}**'.format(i.object_name)
+                        else:
+                            obj_name = '{0}'.format(i.object_name)
+                        emoji_textlist.append(obj_name)
+                    emoji_textlist.append('\n**__Page {0}/{1}__**'.format(page+1, num_pages))
+                    emoji_textlist.append('*Type `{0}l {1}` to view the next page*'.format(config_dict['prefix'], next_page))
                     embed.description = "\n".join(emoji_textlist)
                     await message.channel.send(embed=embed)
                 elif message.content.startswith(config_dict['prefix'] + 'emoji'):
