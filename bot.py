@@ -216,6 +216,13 @@ class MyClient(discord.Client):
     async def on_guild_emojis_update(self, guild, before, after):
         if guild.id == config_dict['guild_id']:
 
+            guild_state = await self.get_guild_emoji_state(guild.id)
+            all_emojis = guild_state['regular'].union(guild_state['animated'])
+            for i in all_emojis:
+                if i not in emoji_dict:
+                    emoji = discord.utils.get(guild.emojis, name=i)
+                    emoji_dict[i] = [emoji.id, emoji.animated]
+
             emoji_names_before = [i.name for i in before]
             emoji_names_after = [i.name for i in after]
 
