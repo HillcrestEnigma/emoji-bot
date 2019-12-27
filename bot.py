@@ -10,6 +10,7 @@ import io
 import asyncio
 
 emoji_regex = re.compile(r':(.*?):')
+used_emoji_regex = re.compile(r'<a?:(\w+):\d+>')
 config_dict = config.update_config()
 minioClient = Minio(config_dict['bucket_endpoint'],
                   access_key=config_dict['bucket_access_key'],
@@ -166,6 +167,9 @@ class MyClient(discord.Client):
                 await self.set_guild_emoji_state(guild_id, bucket_name, {emoji_type: guild_state - {guild_emojis[0].name}})
 
         status['maintain_emoji_state'] = "idle"
+
+    def sub_used_emoji(self, matchObj):
+        return ":{0}:".format(matchObj.group(1))
 
     def sub_emoji(self, matchObj):
         emoji = emoji_dict[matchObj.group(1)]
@@ -376,7 +380,12 @@ class MyClient(discord.Client):
 
                     if len(absent_regular_emojis) > 0 or len(used_animated_emojis) > 0:
                         await self.maintain_emoji_state(config_dict['guild_id'], config_dict['bucket_name'])
-                        new_message = re.sub(emoji_regex, self.sub_emoji, message.content)
+                        print("====")
+                        print(message.content)
+                        new_message = re.sub(used_emoji_regex, self.sub_used_emoji, message.content)
+                        print(new_message)
+                        new_message = re.sub(emoji_regex, self.sub_emoji, new_message)
+                        print(new_message)
                         webhook = await message.channel.create_webhook(name=message.author.display_name, avatar=await message.author.avatar_url.read())
                         await webhook.send(new_message)
                         await webhook.delete()
