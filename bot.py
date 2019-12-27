@@ -16,7 +16,8 @@ minioClient = Minio(config_dict['bucket_endpoint'],
                   secret_key=config_dict['bucket_secret_key'],
                   secure=True)
 help_message = [
-    ['le [Page Number]', 'List all emojis available.'],
+    ['l [Page Number]', 'List all emojis available.'],
+    ['s [Query] [Page Number]', 'Searches for emojis'],
     ['emoji [Emoji Name]', 'Display information on the emoji specified.'],
     ['help', 'Display this glorious help message.']
 ]
@@ -160,7 +161,7 @@ class MyClient(discord.Client):
                 random.shuffle(list_bucket_unique_state)
                 await self.set_guild_emoji_state(guild_id, bucket_name, {emoji_type: guild_state.union(set(list_bucket_unique_state[:num_needed_guild_emojis]))})
             if len(guild_state) == guild.emoji_limit:
-                guild_emojis = list(guild.emojis)
+                guild_emojis = [i for i in guild.emojis if i.name in guild_state]
                 guild_emojis.sort(key=lambda x: x.created_at)
                 await self.set_guild_emoji_state(guild_id, bucket_name, {emoji_type: guild_state - {guild_emojis[0].name}})
 
@@ -247,7 +248,9 @@ class MyClient(discord.Client):
                         page = int(command[1]) - 1
                     bucket_state = await self.get_bucket_emoji_state(config_dict['bucket_name'])
                     all_emojis = bucket_state['regular'].union(bucket_state['animated'])
-                    paginator = Paginator(list(all_emojis), 50)
+                    all_emojis_list = list(all_emojis)
+                    all_emojis_list.sort()
+                    paginator = Paginator(all_emojis_list, 50)
                     num_pages = paginator.num_pages()
                     emojis = paginator.get_page(page)
                     next_page = (page+2)%num_pages
@@ -258,12 +261,6 @@ class MyClient(discord.Client):
                     embed = discord.Embed(title="Emojis of {0}".format(message.guild.name))
                     emoji_textlist = ['**__Page {0}/{1}__**\n'.format(page+1, num_pages)]
                     for i in emojis:
-                        # if (not None == i.metadata) and 'x-amz-meta-info' in i.metadata:
-                        #     info = i.metadata['x-amz-meta-info']
-                        # else:
-                        #     info = '*Last Modified at {0}*'.format(i.last_modified)
-                        #     info = "*No info provided*"
-                        # emoji_textlist.append("{0} - {1}".format(i.object_name, info))
                         obj_name = '{0}'.format(i)
                         if i in all_guild_emojis:
                             obj_name = '**{0}**'.format(obj_name)
@@ -274,10 +271,52 @@ class MyClient(discord.Client):
                     emoji_textlist.append('*Type `{0}l {1}` to view the next page*'.format(config_dict['prefix'], next_page))
                     embed.description = "\n".join(emoji_textlist)
                     await message.channel.send(embed=embed)
+                elif command[0] in ["search", "s"]:
+                    query = command[1]
+                    bucket_state = await self.get_bucket_emoji_state(config_dict['bucket_name'])
+                    all_emojis = bucket_state['regular'].union(bucket_state['animated'])
+                    matching_emojis = [i for i in all_emojis if query.lower() in i.lower()]
+                    matching_emojis.sort()
+
+                    if len(command) == 2:
+                        page = 0
+                    else:
+                        page = int(command[2]) - 1
+                    
+                    paginator = Paginator(matching_emojis, 50)
+                    num_pages = paginator.num_pages()
+                    emojis = paginator.get_page(page)
+                    next_page = (page+2)%num_pages
+                    if next_page == 0:
+                        next_page = num_pages
+                    guild_state = await self.get_guild_emoji_state(config_dict['guild_id'])
+                    all_guild_emojis = guild_state['regular'].union(guild_state['animated'])
+                    embed = discord.Embed(title="Matching emojis for `{0}`".format(query))
+                    emoji_textlist = ['**__Page {0}/{1}__**\n'.format(page+1, num_pages)]
+                    for i in emojis:
+                        obj_name = '{0}'.format(i)
+                        if i in all_guild_emojis:
+                            obj_name = '**{0}**'.format(obj_name)
+                        if i in bucket_state['animated']:
+                            obj_name = '*{0}*'.format(obj_name)
+                        query_start_index = obj_name.lower().index(query.lower())
+                        query_end_index = query_start_index + len(query)
+                        obj_name = '{0}__{1}__{2}'.format(obj_name[:query_start_index], obj_name[query_start_index:query_end_index], obj_name[query_end_index:])
+                        emoji_textlist.append(obj_name)
+                    emoji_textlist.append('\n**__Page {0}/{1}__**'.format(page+1, num_pages))
+                    emoji_textlist.append('*Type `{0}s {1} {2}` to view the next page*'.format(config_dict['prefix'], query, next_page))
+                    embed.description = "\n".join(emoji_textlist)
+                    await message.channel.send(embed=embed)
+
                 elif message.content.startswith(config_dict['prefix'] + 'emoji'):
                     emoji_name = message.content.split(" ")[1]
-                    emoji = minioClient.stat_object(config_dict['bucket_name'], emoji_name)
-                    emoji_url = minioClient.presigned_get_object(config_dict['bucket_name'], emoji_name, expires=datetime.timedelta(days=2))
+                    bucket_state = await self.get_bucket_emoji_state(config_dict['bucket_name'])
+                    if emoji_name in bucket_state['regular']:
+                        emoji_type = 'regular'
+                    else:
+                        emoji_type = 'animated'
+                    emoji = minioClient.stat_object(config_dict['bucket_name'], '{0}/{1}'.format(emoji_type, emoji_name))
+                    emoji_url = minioClient.presigned_get_object(config_dict['bucket_name'], '{0}/{1}'.format(emoji_type, emoji_name), expires=datetime.timedelta(days=2))
                     if (not None == emoji.metadata) and 'x-amz-meta-info' in emoji.metadata:
                         info = emoji.metadata['x-amz-meta-info']
                     else:
